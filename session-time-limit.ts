@@ -181,7 +181,50 @@ export default function sessionTimeLimit(pi: ExtensionAPI): void {
 		}
 		if (text === lastStatusText) return;
 		lastStatusText = text;
-		ctx.ui.setStatus(STATUS_KEY, text);
+		showOverlay(ctx);
+		overlayTui?.requestRender();
+	}
+
+	// Discreet top-right overlay instead of a footer status.
+	let overlayTui: { requestRender(): void } | undefined;
+	let overlayDone: (() => void) | undefined;
+	let overlayOpen = false;
+	const plainLen = (s: string): number => [...s.replace(/\x1b\[[0-9;]*m/g, "")].length + 1; // ⏱ is wide
+
+	function showOverlay(ctx: ExtensionContext): void {
+		if (overlayOpen || !ctx.hasUI) return;
+		overlayOpen = true;
+		void ctx.ui
+			.custom<void>(
+				(tui, _theme, _kb, done) => {
+					overlayTui = tui;
+					overlayDone = () => done(undefined);
+					return {
+						render: (width: number) =>
+							lastStatusText ? [" ".repeat(Math.max(0, width - plainLen(lastStatusText))) + lastStatusText] : [],
+						invalidate() {},
+						handleInput() {},
+					};
+				},
+				{
+					overlay: true,
+					overlayOptions: () => ({
+						anchor: "top-right",
+						width: 14,
+						margin: { top: 0, right: 1 },
+						nonCapturing: true,
+					}),
+				},
+			)
+			.finally(() => {
+				overlayOpen = false;
+				overlayTui = undefined;
+				overlayDone = undefined;
+			});
+	}
+
+	function hideOverlay(): void {
+		overlayDone?.();
 	}
 
 	function steer(content: string): void {
@@ -337,6 +380,7 @@ export default function sessionTimeLimit(pi: ExtensionAPI): void {
 	pi.on("session_shutdown", async (_event, ctx) => {
 		stopTicker();
 		ctx.ui.setStatus(STATUS_KEY, undefined);
+		hideOverlay();
 	});
 
 	pi.on("input", async (event, ctx) => {
