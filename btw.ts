@@ -23,6 +23,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type Component, Markdown, matchesKey, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
+const BG_COLOR = "customMessageBg" as const; // theme bg used for the overlay panel
 const MAX_CONTEXT_CHARS = 300_000; // keep the most recent part of long sessions
 
 const SYSTEM_PROMPT = `You are answering a quick "by the way" side question from the user about an ongoing coding-agent session.
@@ -140,7 +141,7 @@ class BtwOverlay implements Component {
 		const pos = body.length > bodyHeight ? t.fg("dim", ` ${this.scroll + 1}-${this.scroll + visible.length}/${body.length}`) : "";
 		const help = t.fg("dim", "↑↓/PgUp/PgDn scroll · Esc close · not saved to session");
 
-		return [
+		const lines = [
 			top,
 			...qLines,
 			row(t.fg("dim", "─".repeat(inner))),
@@ -148,6 +149,14 @@ class BtwOverlay implements Component {
 			row(`${state}${pos}  ${help}`),
 			border(`╰${"─".repeat(Math.max(0, width - 2))}╯`),
 		];
+
+		// Tinted background for contrast with the main window. Re-apply the bg
+		// after any reset sequences emitted by inner styling (markdown, fg colors).
+		const bg = t.getBgAnsi(BG_COLOR);
+		return lines.map((l) => {
+			const padded = l + " ".repeat(Math.max(0, width - visibleWidth(l)));
+			return `${bg}${padded.replace(/\x1b\[(0|49)?m/g, (m) => m + bg)}\x1b[49m`;
+		});
 	}
 }
 

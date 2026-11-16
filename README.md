@@ -11,7 +11,7 @@ My personal extensions for the [pi coding agent](https://github.com/earendil-wor
 | `permission-gate.ts` | Asks before destructive bash commands |
 | `protected-paths.ts` | Blocks writes/edits to secrets and generated dirs |
 | `deepseek-web.ts` | `web_search` / `web_fetch` tools via the DeepSeek API |
-| `btw.ts` | `/btw <question>` — ask a side question about the session (even mid-run); answer streams in an overlay and is never added to context |
+| `btw.ts` | `/btw <question>` — ask a side question about the session (even mid-run); answer streams in a tinted overlay and is never added to context |
 | `questionnaire.ts` | Tool for asking the user multiple-choice questions |
 | `session-time-limit.ts` | Per-prompt wall-clock time budget |
 | `status-footer.ts` | Richer status bar (git, context, cost, model) |
