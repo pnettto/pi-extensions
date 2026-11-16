@@ -13,7 +13,7 @@ My personal extensions for the [pi coding agent](https://github.com/earendil-wor
 | `deepseek-web.ts` | `web_search` / `web_fetch` tools via the DeepSeek API |
 | `questionnaire.ts` | Tool for asking the user multiple-choice questions |
 | `session-time-limit.ts` | Per-prompt wall-clock time budget |
-| `hawk-footer.ts` | Richer status bar (git, context, cost, model) |
+| `status-footer.ts` | Richer status bar (git, context, cost, model) |
 | `notify.ts` | Chime when pi is done or needs permission |
 | `clear-on-quit.ts` | Clears the terminal on exit |
 | `gondolin/` | Runs tools inside a sandboxed micro-VM; credentials stay on the host and are injected on approval (`npm install` + `build-image.sh`) |

@@ -1,7 +1,7 @@
 /**
- * Hawk Footer — a richer, prettier status bar.
+ * Status Footer — a richer, prettier status bar.
  *
- * Line 1:  🦅 cwd  ⎇ branch ✚dirty ↑ahead ↓behind · session name        ⠹ editing main.ts · ⏱ 12m · 14:32
+ * Line 1:  📁 cwd  ⎇ branch ✚dirty ↑ahead ↓behind · session name        ⠹ editing main.ts · ⏱ 12m · 14:32
  * Line 2:  ◔ ▰▰▰▱▱▱▱▱▱▱ 31% 62k/200k   ↑12k ↓3.1k ⚡92% $0.42            ● claude-opus-4-8 · high
  * Line 3:  extension statuses (only when something set one)
  *
@@ -163,7 +163,7 @@ export default function (pi: ExtensionAPI) {
 					// ── line 1: where + activity ──────────────────────────────
 					const project = basename(cx.cwd);
 					const parent = shortCwd(cx.cwd).slice(0, -project.length);
-					let l1 = `${c("accent", "🦅")} ${c("dim", parent)}${theme.bold(c("text", project))}`;
+					let l1 = `${c("accent", "📁")} ${c("dim", parent)}${theme.bold(c("text", project))}`;
 
 					const branch = git.branch ?? footerData.getGitBranch();
 					if (branch) {
@@ -303,12 +303,12 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_info_changed", async () => requestRender());
 
 	pi.registerCommand("footer", {
-		description: "Toggle the Hawk footer / built-in footer",
+		description: "Toggle the status footer / built-in footer",
 		handler: async (_args, ctx) => {
 			enabled = !enabled;
 			if (enabled) {
 				install(ctx);
-				ctx.ui.notify("Hawk footer on", "info");
+				ctx.ui.notify("Status footer on", "info");
 			} else {
 				ctx.ui.setFooter(undefined);
 				ctx.ui.notify("Built-in footer restored", "info");
