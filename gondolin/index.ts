@@ -27,6 +27,8 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { RealFSProvider, VM } from "@earendil-works/gondolin";
 import { type CredentialBroker, createCredentialBroker, SERVICES } from "./credentials.ts";
+import { createRemovalApprover, RemovalApprovalProvider } from "./deletion-gate.ts";
+import { resetRemovalSession } from "../shared/removal-session.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	type BashOperations,
@@ -564,8 +566,10 @@ export default function (pi: ExtensionAPI) {
 	let sandboxInfo = "Sandbox (Alpine Linux, musl). Install packages with `apk add`.";
 	let uiCtx: ExtensionContext | undefined;
 	const broker = createCredentialBroker(() => uiCtx);
+	const approveRemoval = createRemovalApprover(() => uiCtx);
 
 	async function startVm(ctx?: ExtensionContext): Promise<VM> {
+		uiCtx = ctx;
 		ctx?.ui.setStatus("gondolin", ctx.ui.theme.fg("accent", `Gondolin: starting ${path.basename(localCwd)}`));
 		// Same object, so CLOUDFLARE_ACCOUNT_ID shows up once it's resolved.
 		secretEnv = broker.guestEnv;
@@ -577,9 +581,9 @@ export default function (pi: ExtensionAPI) {
 			sessionLabel: `pi ${path.basename(localCwd)}`,
 			vfs: {
 				mounts: {
-					[GUEST_WORKSPACE]: new RealFSProvider(localCwd),
-					[GUEST_NPM_CACHE]: new RealFSProvider(caches.npm),
-					[GUEST_DENO_SHARED]: new RealFSProvider(caches.deno),
+					[GUEST_WORKSPACE]: new RemovalApprovalProvider(new RealFSProvider(localCwd), GUEST_WORKSPACE, approveRemoval),
+					[GUEST_NPM_CACHE]: new RemovalApprovalProvider(new RealFSProvider(caches.npm), GUEST_NPM_CACHE, approveRemoval),
+					[GUEST_DENO_SHARED]: new RemovalApprovalProvider(new RealFSProvider(caches.deno), GUEST_DENO_SHARED, approveRemoval),
 				},
 			},
 		};
@@ -641,6 +645,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
+		resetRemovalSession(ctx);
 		uiCtx = ctx;
 		await ensureVm(ctx);
 	});
@@ -658,6 +663,8 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		resetRemovalSession(ctx);
+		uiCtx = undefined;
 		const activeVm = vm;
 		vm = undefined;
 		vmStarting = undefined;
