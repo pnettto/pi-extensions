@@ -36,7 +36,7 @@ function saveShowHidden(v: boolean) {
  * When focused:
  *   ↑/↓ j/k   move          →/l/enter   expand dir
  *   ←/h       collapse/up   enter (file) add @path to the message (focus stays)
- *   r         refresh       .            toggle hidden files
+ *   .         toggle hidden files (tree and Git status auto-refresh every 3s while open)
  *   c         clear change markers
  *   o         open selected file/folder in the macOS default app (Finder for folders)
  *   esc       back to editor (panel stays)   q   close panel
@@ -55,6 +55,7 @@ function saveShowHidden(v: boolean) {
 const PANEL_WIDTH = 36;
 const MIN_TERM_WIDTH = 90;
 const MAX_DIR_ENTRIES = 500;
+const REFRESH_INTERVAL_MS = 3000;
 const GUEST_WORKSPACE = "/workspace"; // gondolin sandbox mount point
 
 type Mark = "A" | "M" | "D" | "?";
@@ -78,6 +79,8 @@ export default function fileExplorer(pi: ExtensionAPI) {
 	let scroll = 0;
 	let keepSelectionVisible = true; // false after mouse wheel/click so the view isn't yanked back
 
+	let refreshTimer: ReturnType<typeof setInterval> | undefined;
+	let gitRefresh: AbortController | undefined;
 	let handle: any | undefined;
 	let closePanel: (() => void) | undefined;
 	let tuiRef: any | undefined;
@@ -148,18 +151,27 @@ export default function fileExplorer(pi: ExtensionAPI) {
 	};
 
 	const refreshGit = () => {
-		execFile("git", ["-C", root, "rev-parse", "--show-toplevel"], { timeout: 2000 }, (err, top) => {
-			if (err) {
-				gitMarks = new Map();
+		if (gitRefresh) return; // tool events and polling must not overlap Git processes
+		const controller = new AbortController();
+		gitRefresh = controller;
+		const signal = controller.signal;
+		execFile("git", ["-C", root, "rev-parse", "--show-toplevel"], { timeout: 2000, signal }, (err, top) => {
+			if (err || signal.aborted) {
+				gitRefresh = undefined;
+				if (!signal.aborted) {
+					gitMarks = new Map();
+					tuiRef?.requestRender();
+				}
 				return;
 			}
 			const repoRoot = top.trim();
 			execFile(
 				"git",
 				["-C", root, "status", "--porcelain", "-uall"],
-				{ timeout: 4000, maxBuffer: 4 * 1024 * 1024 },
+				{ timeout: 4000, maxBuffer: 4 * 1024 * 1024, signal },
 				(err2, out) => {
-					if (err2) return;
+					gitRefresh = undefined;
+					if (err2 || signal.aborted) return;
 					const m = new Map<string, Mark>();
 					for (const line of out.split("\n")) {
 						if (line.length < 4) continue;
@@ -171,7 +183,7 @@ export default function fileExplorer(pi: ExtensionAPI) {
 						m.set(path.join(repoRoot, file), mark);
 					}
 					gitMarks = m;
-					invalidate();
+					tuiRef?.requestRender();
 				},
 			);
 		});
@@ -182,6 +194,28 @@ export default function fileExplorer(pi: ExtensionAPI) {
 	const invalidate = () => {
 		rowsCache = undefined;
 		tuiRef?.requestRender();
+	};
+
+	const stopPolling = () => {
+		if (refreshTimer) clearInterval(refreshTimer);
+		refreshTimer = undefined;
+		gitRefresh?.abort();
+	};
+
+	const startPolling = () => {
+		if (refreshTimer) return;
+		refreshTimer = setInterval(() => {
+			if (!handle || handle.isHidden() || (tuiRef?.terminal?.columns ?? MIN_TERM_WIDTH) < MIN_TERM_WIDTH) return;
+			// Only root and expanded directories are read by rows(). Keep selection on its path.
+			const selectedPath = rows()[selected]?.abs;
+			rowsCache = undefined;
+			const list = rows();
+			const index = selectedPath ? list.findIndex((r) => r.abs === selectedPath) : -1;
+			selected = index >= 0 ? index : Math.max(0, Math.min(selected, list.length - 1));
+			tuiRef?.requestRender();
+			refreshGit();
+		}, REFRESH_INTERVAL_MS);
+		refreshTimer.unref();
 	};
 
 	const panelHeight = () => Math.max(8, (tuiRef?.terminal?.rows ?? 30) - 8);
@@ -315,6 +349,7 @@ export default function fileExplorer(pi: ExtensionAPI) {
 						rowsCache = undefined;
 					},
 					dispose: () => {
+						stopPolling();
 						unpatchOutsideClick?.();
 						handle = undefined;
 						closePanel = undefined;
@@ -336,6 +371,7 @@ export default function fileExplorer(pi: ExtensionAPI) {
 				}),
 				onHandle: (h) => {
 					handle = h;
+					startPolling();
 					if (focus) focusPanel();
 				},
 			},
@@ -343,6 +379,7 @@ export default function fileExplorer(pi: ExtensionAPI) {
 	};
 
 	const close = () => {
+		stopPolling();
 		if (handle?.isFocused()) unfocusPanel(); // hand focus back before removing
 		closePanel?.();
 	};
@@ -395,8 +432,6 @@ export default function fileExplorer(pi: ExtensionAPI) {
 			}
 		} else if (data === "o") {
 			if (cur) openExternally(cur.abs);
-		} else if (data === "r") {
-			refreshGit();
 		} else if (data === ".") {
 			showHidden = !showHidden;
 			saveShowHidden(showHidden);
@@ -464,7 +499,7 @@ export default function fileExplorer(pi: ExtensionAPI) {
 			out.push(border("│") + line + border("│"));
 		}
 
-		const hint = focused ? " ↑↓ ←→ ⏎ o r . esc ^F " : " ^F close · /explorer ";
+		const hint = focused ? " ↑↓ ←→ ⏎ o . esc ^F " : " ^F close · /explorer ";
 		const pos = list.length ? ` ${selected + 1}/${list.length} ` : "";
 		const fill = Math.max(0, inner - visibleWidth(hint) - visibleWidth(pos));
 		out.push(border("╰") + th.fg("dim", hint) + border("─".repeat(fill)) + th.fg("dim", pos) + border("╯"));

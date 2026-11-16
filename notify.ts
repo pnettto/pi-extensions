@@ -11,12 +11,12 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 const SOUND = join(homedir(), ".pi", "agent", "sounds", "Kalimba.mp3");
-const VOLUME = "0.23";
+const VOLUME = "0.102";
 const LOG = join(homedir(), ".pi", "agent", "notify.log");
 
-function chime(): void {
+function chime(volume = Number(VOLUME)): void {
 	if (process.platform === "darwin") {
-		execFile("/usr/bin/afplay", ["-v", VOLUME, SOUND], (err) => {
+		execFile("/usr/bin/afplay", ["-v", String(volume), SOUND], (err) => {
 			if (err) appendFileSync(LOG, `${new Date().toISOString()} afplay failed: ${err.message}\n`);
 		});
 	} else {
@@ -28,12 +28,15 @@ export default function (pi: ExtensionAPI) {
 	// Only chime for prompts raised while the agent is working (e.g. permission gates),
 	// not for user-opened UIs like file explorer or /fork restore pickers.
 	let running = false;
+	let options: { completion?: boolean; permission?: boolean; volume?: number } = {};
+	pi.on("session_start", () => { options = (pi.getSettings() as any).extensionPreferences?.notify ?? {}; });
+	const play = () => chime(typeof options.volume === "number" && Number.isFinite(options.volume) ? Math.max(0, Math.min(1, options.volume)) : Number(VOLUME));
 	pi.on("agent_start", async () => {
 		running = true;
 	});
 	pi.on("agent_settled", async () => {
 		running = false;
-		chime();
+		if (options.completion !== false) play();
 	});
 	// Prompts raised during a tool call (questionnaire tool, permission/commit gates) are the
 	// agent asking something — chime for any kind, including custom UIs like the questionnaire.
@@ -48,7 +51,7 @@ export default function (pi: ExtensionAPI) {
 		activeTools = 0;
 	});
 	pi.on("ui_prompt_start", async (event) => {
-		if (!running) return;
-		if (activeTools > 0 || ["select", "confirm", "input"].includes(event.kind)) chime();
+		if (!running || options.permission === false) return;
+		if (activeTools > 0 || ["select", "confirm", "input"].includes(event.kind)) play();
 	});
 }

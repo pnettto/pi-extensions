@@ -10,6 +10,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 export default function (pi: ExtensionAPI) {
 	const checkpoints = new Map<string, string>();
 	let currentEntryId: string | undefined;
+	let options: { enabled?: boolean; restorePrompt?: boolean } = {};
+	pi.on("session_start", () => { options = (pi.getSettings() as any).extensionPreferences?.["git-checkpoint"] ?? {}; });
 
 	// Track the current entry ID when user messages are saved
 	pi.on("tool_result", async (_event, ctx) => {
@@ -18,6 +20,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("turn_start", async () => {
+		if (options.enabled === false) return;
 		// Create a git stash entry before LLM makes changes
 		const { stdout } = await pi.exec("git", ["stash", "create"]);
 		const ref = stdout.trim();
@@ -27,6 +30,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_before_fork", async (event, ctx) => {
+		if (options.enabled === false || options.restorePrompt === false) return;
 		const ref = checkpoints.get(event.entryId);
 		if (!ref) return;
 

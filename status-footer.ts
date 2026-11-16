@@ -43,6 +43,7 @@ const shortCwd = (cwd: string) => {
 
 export default function (pi: ExtensionAPI) {
 	let enabled = true;
+	let options: { enabled?: boolean; showClock?: boolean; showCost?: boolean } = {};
 	let ctxRef: ExtensionContext | undefined;
 	let requestRender: () => void = () => {};
 
@@ -191,7 +192,7 @@ export default function (pi: ExtensionAPI) {
 						act,
 						c("dim", `⏱ ${fmtDur(Date.now() - sessionStart)}`),
 						c("dim", `🔧 ${toolCount}`) + (toolErrors ? c("error", ` ✗${toolErrors}`) : ""),
-						c("dim", clock),
+						options.showClock !== false ? c("dim", clock) : "",
 					]
 						.filter(Boolean)
 						.join(sep);
@@ -216,7 +217,7 @@ export default function (pi: ExtensionAPI) {
 					if (u.hit !== undefined && (u.cacheRead || u.cacheWrite)) {
 						stats.push(c(u.hit > 70 ? "success" : u.hit > 30 ? "muted" : "warning", `⚡${u.hit.toFixed(0)}%`));
 					}
-					if (u.cost) stats.push(c(u.cost > 5 ? "warning" : "muted", `$${u.cost.toFixed(2)}`));
+					if (options.showCost !== false && u.cost) stats.push(c(u.cost > 5 ? "warning" : "muted", `$${u.cost.toFixed(2)}`));
 					if (stats.length) l2 += "   " + stats.join(" ");
 
 					const model = cx.model?.id ?? "no-model";
@@ -251,6 +252,8 @@ export default function (pi: ExtensionAPI) {
 	// ---- events --------------------------------------------------------------
 	pi.on("session_start", async (_e, ctx) => {
 		ctxRef = ctx;
+		options = (pi.getSettings() as any).extensionPreferences?.["status-footer"] ?? {};
+		enabled = options.enabled !== false;
 		usageCache = undefined;
 		install(ctx);
 		refreshGit();

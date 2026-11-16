@@ -4,7 +4,8 @@ My personal extensions for the [pi coding agent](https://github.com/earendil-wor
 
 | Extension | What it does |
 |---|---|
-| `file-explorer.ts` | VS Code–style file tree side panel (`ctrl+f`, `.` toggles hidden files) |
+| `extensions-manager/` | `/extensions` or `ctrl+shift+x`: extension loading rules, tool switches, searchable details, and display settings; Enter focuses details and arrows scroll |
+| `file-explorer.ts` | VS Code–style file tree side panel (`ctrl+f`, `.` toggles hidden files); tree and Git status auto-refresh every 3 seconds while visible |
 | `git-changes.ts` | Source-control side panel with stage/unstage and diff viewer (`ctrl+g`, `.` toggles ignored files) |
 | `git-checkpoint.ts` | Stash checkpoints each turn so `/fork` can restore code state |
 | `yolo.ts` | `/yolo [notes]` — has the agent commit, push, and run the project's deploy command |
