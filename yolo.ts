@@ -1,9 +1,9 @@
 /**
- * /cpd — Commit, Push, Deploy.
+ * /yolo — Commit, Push, Deploy.
  * Hands the agent a prompt to commit all current changes with a descriptive
  * message, push to the upstream branch, then find and run the project's deploy
  * command. Optional args are passed along as extra notes
- * (e.g. `/cpd deploy to staging`).
+ * (e.g. `/yolo deploy to staging`).
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -17,14 +17,14 @@ const buildPrompt = (notes: string) => `Commit, push, and deploy the current pro
 Stop and report if any step fails.${notes ? `\n\nExtra notes from me: ${notes}` : ""}`;
 
 export default function (pi: ExtensionAPI) {
-	pi.registerCommand("cpd", {
+	pi.registerCommand("yolo", {
 		description: "Commit, push and deploy the current project (optional notes as args)",
 		handler: async (args, ctx) => {
 			const prompt = buildPrompt((args ?? "").trim());
 			if (ctx.isIdle()) pi.sendUserMessage(prompt);
 			else {
 				pi.sendUserMessage(prompt, { deliverAs: "followUp" });
-				ctx.ui.notify("/cpd queued after the current run", "info");
+				ctx.ui.notify("/yolo queued after the current run", "info");
 			}
 		},
 	});
