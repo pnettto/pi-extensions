@@ -7,6 +7,7 @@ My personal extensions for the [pi coding agent](https://github.com/earendil-wor
 | `file-explorer.ts` | VS Code–style file tree side panel (`ctrl+f`, `.` toggles hidden files) |
 | `git-changes.ts` | Source-control side panel with stage/unstage and diff viewer (`ctrl+g`, `.` toggles ignored files) |
 | `git-checkpoint.ts` | Stash checkpoints each turn so `/fork` can restore code state |
+| `cpd.ts` | `/cpd [notes]` — has the agent commit, push, and run the project's deploy command |
 | `commit-gate.ts` | Asks before the agent runs `git commit` |
 | `permission-gate.ts` | Asks before destructive bash commands |
 | `protected-paths.ts` | Blocks writes/edits to secrets and generated dirs |
