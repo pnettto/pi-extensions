@@ -1,0 +1,8 @@
+node_modules/
+image-overlay/
+*.bak*
+*.off
+.DS_Store
+.env*
+*.pem
+*.key

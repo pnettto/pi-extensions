@@ -1,0 +1,65 @@
+{
+  "arch": "aarch64",
+  "distro": "alpine",
+  "alpine": {
+    "version": "3.24.4",
+    "kernelPackage": "linux-virt",
+    "kernelImage": "vmlinuz-virt",
+    "rootfsPackages": [
+      "linux-virt",
+      "rng-tools",
+      "bash",
+      "ca-certificates",
+      "ca-certificates-bundle",
+      "curl",
+      "e2fsprogs",
+      "e2fsprogs-extra",
+      "nodejs",
+      "npm",
+      "uv",
+      "python3",
+      "openssh",
+      "git",
+      "github-cli",
+      "ripgrep",
+      "jq",
+      "fd",
+      "make",
+      "coreutils",
+      "findutils",
+      "grep",
+      "sed",
+      "diffutils",
+      "patch",
+      "tar",
+      "zip",
+      "unzip",
+      "xz",
+      "less",
+      "file",
+      "tree",
+      "procps",
+      "sqlite",
+      "imagemagick",
+      "shellcheck",
+      "pnpm",
+      "deno",
+      "chromium",
+      "font-noto",
+      "font-noto-emoji"
+    ],
+    "initramfsPackages": [],
+    "krunfwVersion": "v5.2.1"
+  },
+  "rootfs": {
+    "label": "gondolin-root"
+  },
+  "postBuild": {
+    "copy": [
+      {
+        "src": "image-overlay",
+        "dest": "/"
+      }
+    ]
+  }
+}
