@@ -4,15 +4,16 @@
  *
  * - Works while the agent is running (extension commands execute immediately).
  * - Snapshots the current conversation, sends it + your question to the
- *   current model in a one-off request (no tools), and streams the answer
- *   into a floating overlay.
+ *   current model (no tools), and streams the answer into a floating overlay.
+ * - Type follow-up questions in the overlay's input line; the side thread
+ *   (transcript snapshot + all Q&A turns) is sent with each follow-up.
  * - Nothing is written to the session; the main agent never sees it.
  *
- * Keys in the overlay: ↑/↓ scroll · PgUp/PgDn page · Esc/Enter/q close
- * (closing while streaming aborts the side request).
+ * Keys in the overlay: type + Enter follow up · ↑/↓ scroll · PgUp/PgDn page ·
+ * Esc close (closing while streaming aborts the side request).
  */
 
-import type { UserMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Message, UserMessage } from "@earendil-works/pi-ai";
 import {
 	convertToLlm,
 	type ExtensionAPI,
@@ -21,7 +22,16 @@ import {
 	serializeConversation,
 	type Theme,
 } from "@earendil-works/pi-coding-agent";
-import { type Component, Markdown, matchesKey, type TUI, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import {
+	type Component,
+	type Focusable,
+	Input,
+	Markdown,
+	matchesKey,
+	type TUI,
+	truncateToWidth,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 
 const BG_COLOR = "customMessageBg" as const; // theme bg used for the overlay panel
 const MAX_CONTEXT_CHARS = 300_000; // keep the most recent part of long sessions
@@ -51,57 +61,95 @@ function buildPrompt(ctx: ExtensionCommandContext, question: string): string {
 	].join("\n");
 }
 
-class BtwOverlay implements Component {
-	private answer = "";
-	private status: "streaming" | "done" | "error" | "aborted" = "streaming";
-	private errorText = "";
+type TurnStatus = "streaming" | "done" | "error" | "aborted";
+
+interface Turn {
+	question: string;
+	answer: string;
+	status: TurnStatus;
+	errorText: string;
+	md: Markdown;
+}
+
+class BtwOverlay implements Component, Focusable {
+	private turns: Turn[] = [];
 	private scroll = 0;
 	private follow = true;
-	private md: Markdown;
 	private lastBodyHeight = 10;
+	private input = new Input({ prompt: "› " });
+	private _focused = false;
+
+	/** Called when the user submits a follow-up question. */
+	onSubmit?: (question: string) => void;
 
 	constructor(
 		private tui: TUI,
 		private theme: Theme,
-		private question: string,
 		private modelLabel: string,
 		private onClose: () => void,
-	) {
-		this.md = new Markdown("", 0, 0, getMarkdownTheme());
+	) {}
+
+	get focused() {
+		return this._focused;
+	}
+	set focused(v: boolean) {
+		this._focused = v;
+		this.input.focused = v;
 	}
 
-	append(delta: string) {
-		this.answer += delta;
-		this.md.setText(this.answer);
+	get busy() {
+		return this.turns.at(-1)?.status === "streaming";
+	}
+
+	startTurn(question: string) {
+		this.turns.push({ question, answer: "", status: "streaming", errorText: "", md: new Markdown("", 0, 0, getMarkdownTheme()) });
+		this.follow = true;
 		this.tui.requestRender();
 	}
 
-	finish(status: "done" | "error" | "aborted", errorText = "") {
-		this.status = status;
-		this.errorText = errorText;
+	append(delta: string) {
+		const turn = this.turns.at(-1);
+		if (!turn) return;
+		turn.answer += delta;
+		turn.md.setText(turn.answer);
+		this.tui.requestRender();
+	}
+
+	finish(status: Exclude<TurnStatus, "streaming">, errorText = "") {
+		const turn = this.turns.at(-1);
+		if (!turn) return;
+		turn.status = status;
+		turn.errorText = errorText;
 		this.tui.requestRender();
 	}
 
 	invalidate() {
-		this.md.invalidate();
+		for (const t of this.turns) t.md.invalidate();
+		this.input.invalidate();
 	}
 
 	handleInput(data: string) {
 		const page = Math.max(1, this.lastBodyHeight - 1);
-		if (matchesKey(data, "escape") || matchesKey(data, "enter") || data === "q") {
+		if (matchesKey(data, "escape")) {
 			this.onClose();
-		} else if (matchesKey(data, "up") || data === "k") {
+		} else if (matchesKey(data, "enter")) {
+			const q = this.input.getValue().trim();
+			if (q && !this.busy) {
+				this.input.setValue("");
+				this.onSubmit?.(q);
+			}
+		} else if (matchesKey(data, "up")) {
 			this.scroll = Math.max(0, this.scroll - 1);
 			this.follow = false;
-		} else if (matchesKey(data, "down") || data === "j") {
+		} else if (matchesKey(data, "down")) {
 			this.scroll += 1;
 		} else if (matchesKey(data, "pageUp")) {
 			this.scroll = Math.max(0, this.scroll - page);
 			this.follow = false;
-		} else if (matchesKey(data, "pageDown") || data === " ") {
+		} else if (matchesKey(data, "pageDown")) {
 			this.scroll += page;
 		} else {
-			return;
+			this.input.handleInput(data);
 		}
 		this.tui.requestRender();
 	}
@@ -118,16 +166,21 @@ class BtwOverlay implements Component {
 		// Header
 		const title = ` btw · ${this.modelLabel} `;
 		const top = border(`╭─${truncateToWidth(title, width - 4)}${"─".repeat(Math.max(0, width - 3 - visibleWidth(title)))}╮`);
-		const qLines = wrap(`Q: ${this.question}`, inner).map((l) => row(t.fg("muted", l)));
 
-		// Body
-		let body = this.answer ? this.md.render(inner) : [];
-		if (this.status === "streaming" && !this.answer) body = [t.fg("dim", "thinking…")];
-		if (this.status === "error") body = [...body, "", t.fg("error", `Error: ${this.errorText}`)];
-		if (this.status === "aborted") body = [...body, "", t.fg("warning", "Aborted")];
+		// Body: the whole side thread
+		const body: string[] = [];
+		this.turns.forEach((turn, i) => {
+			if (i > 0) body.push("");
+			body.push(...wrap(`Q: ${turn.question}`, inner).map((l) => t.fg("accent", t.bold(l))));
+			body.push("");
+			if (turn.answer) body.push(...turn.md.render(inner));
+			else if (turn.status === "streaming") body.push(t.fg("dim", "thinking…"));
+			if (turn.status === "error") body.push("", t.fg("error", `Error: ${turn.errorText}`));
+			if (turn.status === "aborted") body.push("", t.fg("warning", "Aborted"));
+		});
 
 		const maxTotal = Math.max(8, Math.floor(this.tui.terminal.rows * 0.8));
-		const bodyHeight = Math.max(3, maxTotal - qLines.length - 4);
+		const bodyHeight = Math.max(3, maxTotal - 6);
 		this.lastBodyHeight = bodyHeight;
 		const maxScroll = Math.max(0, body.length - bodyHeight);
 		if (this.follow) this.scroll = maxScroll;
@@ -136,16 +189,16 @@ class BtwOverlay implements Component {
 		const visible = body.slice(this.scroll, this.scroll + bodyHeight);
 
 		// Footer
-		const state =
-			this.status === "streaming" ? t.fg("warning", "● streaming") : this.status === "done" ? t.fg("success", "✓ done") : "";
+		const state = this.busy ? t.fg("warning", "● streaming") : t.fg("success", "✓ ready");
 		const pos = body.length > bodyHeight ? t.fg("dim", ` ${this.scroll + 1}-${this.scroll + visible.length}/${body.length}`) : "";
-		const help = t.fg("dim", "↑↓/PgUp/PgDn scroll · Esc close · not saved to session");
+		const help = t.fg("dim", this.busy ? "↑↓/PgUp/PgDn scroll · Esc close" : "Enter follow up · ↑↓/PgUp/PgDn scroll · Esc close · not saved to session");
+		const inputLine = this.input.render(inner)[0] ?? "";
 
 		const lines = [
 			top,
-			...qLines,
-			row(t.fg("dim", "─".repeat(inner))),
 			...visible.map(row),
+			row(t.fg("dim", "─".repeat(inner))),
+			row(inputLine),
 			row(`${state}${pos}  ${help}`),
 			border(`╰${"─".repeat(Math.max(0, width - 2))}╯`),
 		];
@@ -174,7 +227,7 @@ function wrap(text: string, width: number): string[] {
 		}
 		out.push(line);
 	}
-	return out.slice(0, 4);
+	return out;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -196,7 +249,6 @@ export default function (pi: ExtensionAPI) {
 				content: [{ type: "text", text: buildPrompt(ctx, question) }],
 				timestamp: Date.now(),
 			};
-			const controller = new AbortController();
 			const modelLabel = `${model.provider}/${model.id}`;
 
 			// Non-TUI fallback: plain request + notify
@@ -210,33 +262,51 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 
+			// Side-thread history: first user message carries the transcript snapshot.
+			const history: Message[] = [userMessage];
+
 			await ctx.ui.custom<void>(
 				(tui, theme, _kb, done) => {
-					const overlay = new BtwOverlay(tui, theme, question, modelLabel, () => {
+					let controller = new AbortController();
+					const overlay = new BtwOverlay(tui, theme, modelLabel, () => {
 						controller.abort();
 						done();
 					});
 
-					(async () => {
+					const ask = async () => {
+						controller = new AbortController();
 						try {
 							const stream = ctx.modelRegistry.streamSimple(
 								model,
-								{ systemPrompt: SYSTEM_PROMPT, messages: [userMessage] },
+								{ systemPrompt: SYSTEM_PROMPT, messages: history },
 								{ signal: controller.signal },
 							);
 							for await (const ev of stream) {
 								if (ev.type === "text_delta") overlay.append(ev.delta);
 							}
-							const result = await stream.result();
+							const result: AssistantMessage = await stream.result();
 							if (result.stopReason === "aborted") overlay.finish("aborted");
 							else if (result.stopReason === "error") overlay.finish("error", result.errorMessage ?? "unknown error");
-							else overlay.finish("done");
+							else {
+								history.push(result);
+								overlay.finish("done");
+							}
 						} catch (err) {
 							if (controller.signal.aborted) overlay.finish("aborted");
 							else overlay.finish("error", err instanceof Error ? err.message : String(err));
 						}
-					})();
+						// Failed turn: drop its question so the thread stays user/assistant alternating.
+						if (history.at(-1)?.role === "user" && history.length > 1) history.pop();
+					};
 
+					overlay.onSubmit = (q) => {
+						history.push({ role: "user", content: [{ type: "text", text: q }], timestamp: Date.now() });
+						overlay.startTurn(q);
+						void ask();
+					};
+
+					overlay.startTurn(question);
+					void ask();
 					return overlay;
 				},
 				{
