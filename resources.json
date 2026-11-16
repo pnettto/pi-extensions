@@ -1,0 +1,11 @@
+{
+  "extensions": [
+    "btw.ts", "clear-on-quit.ts", "commit-gate.ts", "deepseek-web.ts",
+    "extensions-manager", "file-explorer.ts", "git-changes.ts",
+    "git-checkpoint.ts", "gondolin", "hawk-report", "notify.ts",
+    "permission-gate.ts", "protected-paths.ts", "questionnaire.ts",
+    "report", "shared", "session-time-limit.ts", "status-footer.ts", "yolo.ts"
+  ],
+  "prompts": ["prompts/report.md"],
+  "files": ["defaults/keybindings.json"]
+}

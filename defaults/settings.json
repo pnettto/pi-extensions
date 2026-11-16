@@ -1,0 +1,16 @@
+{
+  "hideThinkingBlock": true,
+  "quietStartup": "header",
+  "cacheWarming": "idle",
+  "editorPaddingX": 2,
+  "outputPad": 1,
+  "autocompleteMaxVisible": 5,
+  "fullscreenScrollbar": "always",
+  "fullscreenCopyOnSelect": false,
+  "doubleEscapeAction": "tree",
+  "extensionPreferences": {
+    "clear-on-quit": { "screen": true, "scrollback": true },
+    "notify": { "completion": true, "volume": 0.102 }
+  },
+  "sessionTimeLimit": { "minutes": 5, "enabled": true }
+}

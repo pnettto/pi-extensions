@@ -6,3 +6,13 @@ image-overlay/
 .env*
 *.pem
 *.key
+__pycache__/
+*.pyc
+# Runtime/private material must never live in this source checkout.
+auth.json
+settings.json
+!defaults/settings.json
+sessions/
+hawk-reports/
+*.log
+setup-backups/

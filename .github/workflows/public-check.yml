@@ -1,0 +1,19 @@
+name: Public repository checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  public-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python3 scripts/check-public.py --paths-only --history
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,5 @@
+{
+  "tui.editor.cursorRight": ["right"],
+  "app.editor.external": [],
+  "tui.altScreen.searchNext": ["enter"]
+}

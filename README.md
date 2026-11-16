@@ -1,6 +1,18 @@
-# pi extensions
+# Shared Pi behavior
 
-My personal extensions for the [pi coding agent](https://github.com/earendil-works/pi). Drop this folder at `~/.pi/agent/extensions/`.
+My public extensions and reusable configuration for the [pi coding agent](https://github.com/earendil-works/pi).
+
+See **[SHARING.md](SHARING.md)** for development, publication safety, and another-computer setup.
+The current extension layout is preserved for compatibility; no repository rename is required.
+
+```sh
+python3 scripts/setup.py                         # preview
+python3 scripts/setup.py --apply --adopt-identical # connect + enable publication hooks
+```
+
+The setup links approved resources and adds missing safe defaults without replacing personal settings.
+Install Gitleaks before committing (`brew install gitleaks` on macOS). No credentials,
+sessions, reports, live settings, or notification audio should be added to this repo.
 
 | Extension | What it does |
 |---|---|
@@ -21,7 +33,7 @@ My personal extensions for the [pi coding agent](https://github.com/earendil-wor
 | `clear-on-quit.ts` | Clears the terminal on exit |
 | `gondolin/` | Runs tools inside a sandboxed micro-VM; credentials stay on the host and are injected on approval (`npm install` + `build-image.sh`) |
 
-No secrets live in this repo — tokens are read at runtime from the keychain / CLIs.
+Extensions are intended to read tokens at runtime from the keychain / CLIs. This is not a guarantee or a completed audit: publication checks and manual diff review are required; see [SHARING.md](SHARING.md).
 
 ## Shell deletion approval
 
